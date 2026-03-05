@@ -1,0 +1,19 @@
+{
+    "sustainabilityScore": 87,
+    "weeklyTrend": "+4%",
+    "metrics": {
+      "energySaved": "450",
+      "waterHarvested": "1200",
+      "wasteSegregated": "91"
+    },
+    "blocks": [
+      { "name": "Block 1 (ECE)", "energy": 450, "water": 1200 },
+      { "name": "Block 2 (Freshman)", "energy": 320, "water": 900 },
+      { "name": "Block 5 (AI Labs)", "energy": 1200, "water": 400 },
+      { "name": "Pharmacy Twin", "energy": 280, "water": 300 }
+    ],
+    "alerts": [
+      { "type": "critical", "message": "CRITICAL: High energy anomaly in Block 5" },
+      { "type": "warning", "message": "WARNING: Water leak detected near Freshman Block" }
+    ]
+  }
