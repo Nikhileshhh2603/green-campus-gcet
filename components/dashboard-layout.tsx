@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ResponsiveContainer,
   LineChart,
@@ -14,6 +14,10 @@ import {
   PieChart,
   Pie,
   Cell,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
 } from 'recharts';
 
 // Font setup
@@ -28,24 +32,28 @@ const sidebarLinks = [
   { name: 'Waste Logs', value: 'waste' },
 ];
 
-// Pie chart colors
+// Minimal, premium color palette
+const rechartsColors = {
+  energy: '#5be2b1',    // muted premium emerald
+  water: '#59b5e0',     // calm cyan
+  contrast: '#b7bccf',  // soft slate
+  fill1: '#18212B',     // chart fill dark
+  fill2: '#212c39',     // chart fill lighter
+};
 const pieColors = [
-  "#38bdf8", // cyan
-  "#10b981", // emerald
-  "#64748B", // slate
-  "#0EA5E9",
-  "#22D3EE",
-  "#06B6D4",
+  '#53ceb7',
+  '#4a98c2',
+  '#546881',
+  '#b7bccf',
 ];
 
-// Leaderboard for Green Zones
+// Leaderboard (leave as-premium, but keep muted)
 const leaderboard = [
   { medal: '🥇', name: 'Block 2 (Freshman)', score: 92 },
   { medal: '🥈', name: 'Block 1 (ECE)', score: 88 },
   { medal: '🥉', name: 'Block 3 (Auditorium)', score: 75 },
 ];
 
-// Demo forecast values
 const forecast = {
   energy: '+12%',
   water: 'Stable',
@@ -56,7 +64,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  // Toast format: { show: bool, message: string }
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+
+  // Live demo: chartData and HVAC optimization button state
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isOptimized, setIsOptimized] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -67,72 +80,94 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then(res => res.json())
       .then(json => {
         setData(json);
+        setChartData(json.blocks);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  if (!isMounted) return null;
+  // When switching data fetch, update chartData
+  useEffect(() => {
+    if (data) setChartData(data.blocks);
+  }, [data]);
 
-  if (loading || !data) {
+  if (!isMounted) return null;
+  if (loading || !data || !chartData.length) {
+    // Minimalist loader, no neon, no shadow
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-        <div className="text-2xl md:text-4xl font-bold text-cyan-300 drop-shadow-glow animate-pulse text-center">
-          Connecting to GCET Server...
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-2xl md:text-4xl font-semibold text-zinc-300 animate-pulse text-center font-sans">
+          Connecting to GCET Server…
         </div>
       </div>
     );
   }
 
+  // DATA STRUCTURE
   const {
     sustainabilityScore,
     weeklyTrend,
     metrics,
-    blocks,
     aqi,
     energyRedirection,
     alerts = [],
   } = data;
 
-  // For pie chart: water by block
-  const pieData = blocks.map((block: any) => ({
+  // Pie for water (by block)
+  const pieData = chartData.map((block: any) => ({
     name: block.name,
     value: block.water,
   }));
 
-  // Mini line (trend) data for sustainability score
+  // Minimal trend for sustainability
   const sustainabilityMiniTrend = [
     { x: 0, y: Math.max((sustainabilityScore ?? 87) - (weeklyTrend ?? 4) - 3, 0) },
     { x: 1, y: Math.max((sustainabilityScore ?? 87) - 2, 0) },
     { x: 2, y: sustainabilityScore ?? 87 },
   ];
 
-  function handleAdminAction(message: string) {
-    setToast({ show: true, message });
+  // HVAC optimization: fake data mutation & toasting
+  function handleOptimizeBlock4() {
+    setToast({ show: true, message: "HVAC optimized. Power dropping..." });
+    setChartData(chartData =>
+      chartData.map(block =>
+        block.name === "Block 4 (Auditorium)"
+          ? { ...block, energy: Math.round(block.energy * 0.6) }
+          : block
+      )
+    );
+    setIsOptimized(true);
     setTimeout(() => setToast({ show: false, message: '' }), 2200);
+  }
+
+  // Minimal toast
+  function showToast(message: string, duration = 1900) {
+    setToast({ show: true, message });
+    setTimeout(() => setToast({ show: false, message: '' }), duration);
   }
 
   function Sidebar({ mobile }: { mobile?: boolean }) {
     return (
       <nav className={
         mobile
-          ? "fixed bottom-0 left-0 right-0 flex md:hidden z-40 shadow-md bg-slate-950/95 border-t border-slate-900"
-          : "hidden md:flex fixed left-0 top-0 h-screen w-64 bg-slate-950 border-r border-slate-900 flex-col z-30"
+          ? "fixed bottom-0 left-0 right-0 flex md:hidden z-40 bg-black/95 border-t border-zinc-900"
+          : "hidden md:flex fixed left-0 top-0 h-screen w-56 bg-black border-r border-zinc-900 flex-col z-30"
       }>
-        <div className={mobile ? "hidden" : "flex items-center h-16 px-6 border-b border-slate-900"}>
-          <span className="text-xl font-bold text-white tracking-wide select-none">GCET</span>
+        <div className={mobile ? "hidden" : "flex items-center h-16 px-6 border-b border-zinc-900"}>
+          <span className="text-lg font-semibold text-white tracking-wide select-none">GCET</span>
         </div>
-        <ul className={`flex-1 ${mobile ? "flex-row justify-around px-1 py-1" : "flex flex-col px-3 pt-9 pb-6 gap-1"}`}>
+        <ul className={`flex-1 ${mobile ? "flex-row justify-around px-1 py-1" : "flex flex-col px-2 pt-7 pb-6 gap-1"}`}>
           {sidebarLinks.map(link =>
             <li key={link.value} className={mobile ? "flex-1" : ""}>
               <button
                 type="button"
                 onClick={() => setActiveTab(link.value)}
-                className={`w-full flex items-center justify-center md:justify-start px-3 py-2 rounded-md font-medium transition-colors
+                className={`w-full flex items-center justify-center md:justify-start px-3 py-2 rounded-md font-medium transition
                   ${activeTab === link.value
-                    ? "bg-zinc-900 text-cyan-300 border border-cyan-600 shadow-md"
-                    : "text-zinc-300/85 hover:bg-slate-900"}
+                    ? "bg-zinc-900/50 text-white border border-zinc-700"
+                    : "text-zinc-400 hover:bg-zinc-900/40 transition"}
                 `}
+                style={{ fontWeight: 500, letterSpacing: '0.01em' }}
               >
                 <span className={mobile ? "text-sm font-medium" : ""}>{link.name}</span>
               </button>
@@ -143,221 +178,349 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // -------- TABS ---------
+  // Full-width minimalist AreaChart for Energy tab
+  function EnergyTab() {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.43 }}
+        className="w-full"
+      >
+        <div className="flex flex-col md:flex-row justify-between items-end mt-3 mb-8">
+          <div className="text-xl md:text-2xl font-semibold text-white tracking-tight">Campus Energy vs Water</div>
+        </div>
+        <div className="w-full h-[404px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-0.5 md:p-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart
+              data={chartData}
+              margin={{ top: 28, right: 36, left: 16, bottom: 8 }}
+            >
+              <defs>
+                <linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="10%" stopColor={rechartsColors.energy} stopOpacity={0.19} />
+                  <stop offset="100%" stopColor={rechartsColors.fill1} stopOpacity={0.00} />
+                </linearGradient>
+                <linearGradient id="waterFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="15%" stopColor={rechartsColors.water} stopOpacity={0.13} />
+                  <stop offset="95%" stopColor={rechartsColors.fill2} stopOpacity={0.00} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#242a33" strokeDasharray="3 4" opacity={0.09} />
+              <XAxis dataKey="name" tick={{ fill: "#b7bccf", fontSize: 13, fontWeight: 500 }} axisLine={false} tickLine={false} />
+              <YAxis orientation="left" yAxisId="energy" tick={{ fill: "#33ecce", fontSize: 13 }} axisLine={false} tickLine={false} />
+              <YAxis orientation="right" yAxisId="water" tick={{ fill: "#59b5e0", fontSize: 13 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                wrapperStyle={{ border: 'none', borderRadius: 8, boxShadow: '0 2px 4px #1112', background: 'none' }}
+                contentStyle={{ background: '#131518', border: '1px solid #232832', color: '#fff', borderRadius: 8, fontSize: 15 }}
+                labelStyle={{ color: '#b7bccf', fontWeight: 600, border: 0 }}
+              />
+              <Area
+                yAxisId="energy"
+                type="monotone"
+                dataKey="energy"
+                name="Energy (kWh)"
+                stroke={rechartsColors.energy}
+                fill="url(#energyFill)"
+                strokeWidth={3}
+                dot={{ r: 5, fill: rechartsColors.fill1, stroke: rechartsColors.energy, strokeWidth: 2 }}
+                activeDot={{ r: 7, fill: '#1A2E2D', stroke: rechartsColors.energy, strokeWidth: 4, opacity: 0.44 }}
+              />
+              <Area
+                yAxisId="water"
+                type="monotone"
+                dataKey="water"
+                name="Water (L)"
+                stroke={rechartsColors.water}
+                fill="url(#waterFill)"
+                strokeWidth={3}
+                dot={{ r: 5, fill: rechartsColors.fill2, stroke: rechartsColors.water, strokeWidth: 2 }}
+                activeDot={{ r: 7, fill: '#19272D', stroke: rechartsColors.water, strokeWidth: 4, opacity: 0.39 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Water tab: BarChart
+  function WaterTab() {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="w-full"
+      >
+        <div className="text-xl md:text-2xl font-semibold text-white mb-8 tracking-tight">Water Usage By Block</div>
+        <div className="w-full h-[390px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-0.5 md:p-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 16, right: 32, left: 16, bottom: 18 }}>
+              <CartesianGrid stroke="#232832" strokeDasharray="2 4" opacity={0.10} />
+              <XAxis dataKey="name" tick={{ fill: '#b7bccf', fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: rechartsColors.water, fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                wrapperStyle={{ border: 'none', background: 'none' }}
+                contentStyle={{ background: '#181d22', border: '1px solid #272d37', color: '#fff', borderRadius: 8, fontSize: 16 }}
+                labelStyle={{ color: '#b7bccf', fontWeight: 600, border: 0 }}
+                formatter={v => [`${v} L`, 'Water']}
+              />
+              <Bar
+                dataKey="water"
+                fill={rechartsColors.water}
+                name="Water (L)"
+                barSize={38}
+                radius={[8, 8, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Waste Logs: terminal-style, ultra clean
+  function WasteTab() {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.36 }}
+        className="w-full flex flex-col items-center"
+      >
+        <div className="w-full max-w-2xl rounded-xl bg-zinc-900/60 border border-zinc-800 px-0 pt-5 pb-0">
+          <div className="px-6 pb-2 flex items-center justify-between">
+            <div className="text-lg md:text-xl font-semibold tracking-tight text-white">Waste Segregation Logs</div>
+            <div className="text-sm text-zinc-400 font-mono">Waste Segregated: <span className="text-emerald-300 font-bold">{metrics.wasteSegregated ?? '--'}</span></div>
+          </div>
+          <div className="px-6 pb-5 pt-1">
+            <div
+              className="w-full rounded bg-black px-4 py-4 font-mono text-[15px] text-zinc-300 border border-zinc-800"
+              style={{ fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", monospace' }}
+            >
+              <div className="text-zinc-500 select-none mb-2">// Waste system log — GCET</div>
+              {alerts && alerts.length ? (
+                alerts.map((a: any, idx: number) => (
+                  <div key={idx} className="flex gap-2 items-center leading-relaxed">
+                    <span className="text-zinc-400">{"[" + (a.type?.toUpperCase() || "-") + "]"}</span>
+                    <span className="text-zinc-300">{a.message}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-zinc-600 font-light italic">No system waste alerts.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
-    <div className="min-h-screen w-full font-sans bg-zinc-950 relative flex flex-col md:flex-row">
+    <div className="min-h-screen w-full font-sans bg-black relative flex flex-col md:flex-row">
       <Sidebar />
       <Sidebar mobile />
 
-      <div className="flex-1 min-h-screen flex flex-col md:pl-64 bg-zinc-950">
+      <div className="flex-1 min-h-screen flex flex-col md:pl-56 bg-black">
         {/* Header */}
-        <header className="sticky top-0 z-20 bg-slate-950/95 border-b border-slate-900 h-18 px-4 md:px-10 flex flex-col justify-center shadow-sm">
+        <header className="sticky top-0 z-20 bg-black/95 border-b border-zinc-900 h-18 px-5 md:px-12 flex flex-col justify-center">
           <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-4 py-4">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">
               GCET Command Center
             </h1>
-            <div className="flex flex-col md:flex-row gap-0.5 md:gap-4 items-center">
-              <span className="text-[13px] text-green-400 font-mono tracking-wide animate-blink-soft">
-                🟢 System Status: Monitoring 7 GCET Zones
+            <div className="flex flex-col md:flex-row gap-1.5 md:gap-5 items-center">
+              <span className="text-xs text-emerald-400 font-mono tracking-wide animate-blink-soft select-none">
+                ● Monitoring 7 Zones
               </span>
-              <span className="text-[13px] text-cyan-200 font-mono tracking-wide">
-                | Last Sync: 10s ago
+              <span className="text-xs text-zinc-400 font-mono select-none">
+                Last Sync: 10s ago
               </span>
             </div>
           </div>
         </header>
+        {/* Minimal toast (no glow, subtle border only) */}
+        <AnimatePresence>
+          {toast.show &&
+            <motion.div
+              key={toast.message}
+              initial={{ opacity: 0, y: 32 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
+              className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 bg-zinc-900/90 text-white border border-zinc-700 px-7 py-2.5 rounded-lg font-medium text-[15px] shadow-none"
+              style={{ fontFamily: "inherit", minWidth: 240, textAlign: 'center', letterSpacing: '.02em', fontWeight: 500 }}
+            >
+              {toast.message}
+            </motion.div>
+          }
+        </AnimatePresence>
 
-        {/* TOAST / ACTION TRIGGERED */}
-        {toast.show &&
-          <motion.div
-            key={toast.message}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            className="fixed top-7 left-1/2 z-[100] -translate-x-1/2 bg-emerald-950 text-cyan-100 border border-emerald-600 shadow-glow px-8 py-3 rounded-lg font-medium text-md drop-shadow-xl"
-          >
-            {toast.message}
-          </motion.div>
-        }
+        <main className="flex-1 flex flex-col py-4 md:py-10 px-2 md:px-8 max-w-[100vw] transition">
 
-        {/* Main content area */}
-        <main className="flex-1 flex flex-col py-4 md:py-8 px-2 md:px-8 max-w-[100vw]">
-          {activeTab === 'overview' ? (
+          {activeTab === 'overview' && (
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, type: "spring", damping: 17 }}
-              className="flex flex-col gap-7"
+              transition={{ duration: 0.36, type: "spring", damping: 17 }}
+              className="flex flex-col gap-8"
             >
-              {/* --- TOP ROW: KEY METRICS --- */}
+              {/* --- METRICS ROW --- */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {/* Sustainability Score Card */}
-                <div className="col-span-1 bg-gradient-to-b from-black/70 via-slate-900 to-zinc-950 border border-accent/60 rounded-2xl shadow-xl p-7 flex flex-col relative overflow-hidden min-h-[142px]">
+                {/* Sustainability Score */}
+                <div className="col-span-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col relative overflow-hidden min-h-[120px]">
                   <div className="mb-2 flex items-center gap-2">
-                    <span className="text-lg font-semibold text-cyan-300">Sustainability Score</span>
+                    <span className="text-base font-semibold text-white">Sustainability</span>
                   </div>
-                  <div className="flex items-center gap-4 h-14">
-                    <div className="text-5xl md:text-6xl font-extrabold text-cyan-300 drop-shadow-glow">{sustainabilityScore ?? 87}/100</div>
-                    {/* Mini line trend */}
-                    <ResponsiveContainer width={80} height={35}>
+                  <div className="flex items-center gap-4 h-12">
+                    <div className="text-4xl md:text-5xl font-extrabold text-white">{sustainabilityScore ?? 87}<span className="ml-1 text-zinc-500 text-2xl font-medium">/100</span></div>
+                    <ResponsiveContainer width={70} height={24}>
                       <LineChart data={sustainabilityMiniTrend}>
                         <Line
                           type="monotone"
                           dataKey="y"
-                          stroke="#38bdf8"
-                          strokeWidth={3}
+                          stroke={rechartsColors.energy}
+                          strokeWidth={2}
                           dot={false}
                         />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className={weeklyTrend >= 0 ? "text-green-400 font-bold" : 'text-red-400 font-bold'}>
+                    <span className={weeklyTrend >= 0 ? "text-emerald-400 font-semibold" : 'text-rose-400 font-semibold'}>
                       ↑ +{weeklyTrend ?? 4}% this week
                     </span>
                   </div>
                 </div>
-
-                {/* AQI Tracker */}
-                <div className="col-span-1 bg-zinc-900 border border-sky-700/30 rounded-2xl p-7 shadow-lg flex flex-col gap-1 min-h-[142px]">
-                  <span className="text-blue-300 font-semibold text-md mb-1">Air Quality Index (AQI)</span>
-                  <span className="text-3xl md:text-4xl font-bold text-sky-200 drop-shadow-glow">
+                {/* AQI */}
+                <div className="col-span-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-1 min-h-[120px]">
+                  <span className="text-sm font-semibold text-zinc-400 mb-1">Air Quality Index</span>
+                  <span className="text-2xl md:text-3xl font-bold text-white">
                     AQI: {aqi?.value ?? 42}
                   </span>
-                  <span className="text-[14px] mt-0.5 font-medium" style={{ color: '#42ffb9' }}>
+                  <span className="text-xs mt-0.5 font-medium text-zinc-400">
                     {aqi?.label ?? 'Good Air Quality'}
                   </span>
                 </div>
-
                 {/* Energy Saved */}
-                <div className="col-span-1 bg-zinc-900 border border-zinc-800 rounded-2xl p-7 shadow-lg flex flex-col gap-1 min-h-[142px]">
-                  <span className="text-zinc-300 font-semibold text-md mb-1">Energy Saved</span>
-                  <span className="text-3xl md:text-4xl font-bold text-green-300 drop-shadow-glow">
+                <div className="col-span-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-1 min-h-[120px]">
+                  <span className="text-sm font-semibold text-zinc-400 mb-1">Energy Saved</span>
+                  <span className="text-2xl md:text-3xl font-bold text-white">
                     {metrics.energySaved}
                   </span>
-                  <span className="text-[13px] text-green-200/70">kWh this week</span>
+                  <span className="text-xs text-zinc-400">kWh this week</span>
                 </div>
-
                 {/* Water Harvested */}
-                <div className="col-span-1 bg-zinc-900 border border-zinc-800 rounded-2xl p-7 shadow-lg flex flex-col gap-1 min-h-[142px]">
-                  <span className="text-zinc-300 font-semibold text-md mb-1">Water Harvested</span>
-                  <span className="text-3xl md:text-4xl font-bold text-emerald-300 drop-shadow-glow">{metrics.waterHarvested}</span>
-                  <span className="text-[13px] text-emerald-200/70">liters this week</span>
+                <div className="col-span-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-1 min-h-[120px]">
+                  <span className="text-sm font-semibold text-zinc-400 mb-1">Water Harvested</span>
+                  <span className="text-2xl md:text-3xl font-bold text-white">{metrics.waterHarvested}</span>
+                  <span className="text-xs text-zinc-400">liters this week</span>
                 </div>
               </div>
-
-              {/* --- ANALYTICS & LEADERBOARD SECTION --- */}
+              {/* --- ANALYTICS & LEADERBOARD --- */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                {/* Main Analytics Left - Energy Efficiency & LineChart */}
+                {/* Main Analytics - Energy Efficiency & LineChart */}
                 <div className="col-span-1 md:col-span-7 flex flex-col gap-6">
                   {/* Energy Efficiency Card */}
                   <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.45, delay: 0.08 }}
-                    className="bg-gradient-to-b from-slate-900 to-zinc-950 border border-cyan-700/15 rounded-2xl shadow-xl p-6"
+                    transition={{ duration: 0.32, delay: 0.08 }}
+                    className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6"
                   >
                     <div className="flex flex-col md:flex-row md:items-end justify-between mb-2">
-                      <span className="text-cyan-300 font-semibold text-lg">Energy Efficiency</span>
-                      <span className="text-sm text-zinc-400 font-mono">Campus Savings Monitor</span>
+                      <span className="text-white font-semibold text-base">Energy Efficiency</span>
+                      <span className="text-xs text-zinc-400 font-mono">Campus Savings Monitor</span>
                     </div>
-                    <div className="flex flex-row md:gap-7 gap-4 items-center mb-1 mt-1">
+                    <div className="flex flex-row md:gap-7 gap-4 items-center mb-1 mt-2">
                       <div className="flex flex-col gap-0">
-                        <span className="text-md text-zinc-300">Target Savings</span>
-                        <span className="text-2xl font-bold text-blue-300">15%</span>
+                        <span className="text-sm text-zinc-400">Target</span>
+                        <span className="text-lg font-bold text-white">{metrics.savingsTarget ?? '15%'}</span>
                       </div>
                       <div className="flex flex-col gap-0">
-                        <span className="text-md text-zinc-300">Actual Savings</span>
-                        <span className="text-2xl font-bold text-emerald-300">{metrics.actualSavings ?? 12}%</span>
+                        <span className="text-sm text-zinc-400">Actual</span>
+                        <span className="text-lg font-bold text-white">{metrics.currentSavings ?? '12%'}</span>
                       </div>
                       <div className="flex flex-col gap-0">
-                        <span className="text-md text-zinc-300">Energy Wasted</span>
-                        <span className="text-2xl font-bold text-rose-300">{metrics.energyWasted ?? 210} kWh</span>
+                        <span className="text-sm text-zinc-400">Energy Wasted</span>
+                        <span className="text-lg font-bold text-white">{metrics.energyWasted ?? 210} kWh</span>
                       </div>
                     </div>
-                    {/* Insight Box */}
-                    <div className="bg-gradient-to-bl from-[#22d3ee1a] to-[#a7f3d01e] py-2.5 px-4 mt-4 rounded-lg border border-cyan-700/25 font-mono text-sm text-cyan-200 flex items-center gap-2">
-                      <span className="font-bold text-cyan-400">Insight:</span> {energyRedirection ?? "Wasted energy could power 142 LED bulbs for 3 days."}
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 mt-4 font-mono text-[13px] text-zinc-400 flex items-center gap-2">
+                      <span className="font-semibold text-emerald-300">Insight:</span> {energyRedirection ?? "Wasted energy could power 142 LED bulbs for 3 days."}
                     </div>
                   </motion.div>
-                  {/* Glowing LineChart of energy consumption */}
+                  {/* Minimalist LineChart of energy */}
                   <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.41, delay: 0.11 }}
-                    className="bg-gradient-to-b from-black/60 via-slate-900 to-zinc-950 border border-slate-900/40 rounded-2xl shadow-lg p-6 flex flex-col"
+                    transition={{ duration: 0.31, delay: 0.12 }}
+                    className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col"
                   >
                     <div className="flex items-center mb-2">
-                      <h2 className="text-cyan-200 font-semibold text-lg flex-1">Blockwise Energy Trends</h2>
+                      <h2 className="text-white font-semibold text-base flex-1">Blockwise Energy Trends</h2>
                     </div>
-                    <div className="grow h-[300px] -mt-1.5">
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={blocks} margin={{ top: 12, right: 18, left: 0, bottom: 8 }}>
-                          <defs>
-                            <filter id="glow-energy-premium" x="-40%" y="-40%" width="180%" height="180%">
-                              <feDropShadow dx="0" dy="1" stdDeviation="8" floodColor="#a9ffdd" floodOpacity="0.23" />
-                              <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#31a9a0" floodOpacity="0.13" />
-                            </filter>
-                          </defs>
-                          <CartesianGrid stroke="#222a33" strokeDasharray="3 7" opacity={0.15} />
-                          <XAxis dataKey="name" tick={{ fill: "#90e6e6", fontWeight: 500 }} />
-                          <YAxis tick={{ fill: "#86efac" }} />
+                    <div className="grow h-[220px]">
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={chartData} margin={{ top: 5, right: 18, left: 0, bottom: 8 }}>
+                          <CartesianGrid stroke="#232a33" strokeDasharray="3 6" opacity={0.07} />
+                          <XAxis dataKey="name" tick={{ fill: "#b7bccf", fontWeight: 500 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fill: rechartsColors.energy, fontWeight: 600 }} axisLine={false} tickLine={false} />
                           <Tooltip
                             contentStyle={{
-                              background: "#131819",
-                              border: "1px solid #31faab",
-                              color: "#9bedc7",
+                              background: "#191f22",
+                              border: "1px solid #232832",
+                              color: "#b7bccf",
                             }}
-                            itemStyle={{ color: "#38bdf8" }}
+                            itemStyle={{ color: rechartsColors.energy }}
                           />
                           <Line
                             type="monotone"
                             dataKey="energy"
-                            name="Energy (kWh)"
-                            stroke="#5cf2c7"
+                            name="kWh"
+                            stroke={rechartsColors.energy}
                             strokeWidth={3}
                             dot={{
-                              r: 5,
-                              fill: "#13292e",
-                              stroke: "#38bdf8",
+                              r: 4,
+                              fill: "#181b1f",
+                              stroke: rechartsColors.energy,
                               strokeWidth: 2,
-                              filter: "url(#glow-energy-premium)",
                             }}
-                            activeDot={{ r: 10, fill: "#0e7490", stroke: "#5cf2c7", strokeWidth: 4, opacity: 0.41 }}
-                            filter="url(#glow-energy-premium)"
+                            activeDot={{ r: 8, fill: "black", stroke: rechartsColors.energy, strokeWidth: 3, opacity: 0.3 }}
                           />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
                   </motion.div>
                 </div>
-                {/* Green Leaderboard */}
+                {/* Leaderboard & Pie */}
                 <motion.div
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.42, delay: 0.13 }}
+                  transition={{ duration: 0.38, delay: 0.10 }}
                   className="col-span-1 md:col-span-5 flex flex-col gap-6">
                   {/* Leaderboard */}
-                  <div className="bg-gradient-to-b from-zinc-900 to-slate-950 border border-emerald-700/10 rounded-2xl shadow-xl p-6">
-                    <span className="text-lg font-semibold text-emerald-400 mb-2">The Green Leaderboard</span>
-                    <ul className="flex flex-col gap-2 mt-2">
+                  <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+                    <span className="text-base font-semibold text-emerald-300 mb-1">The Green Leaderboard</span>
+                    <ul className="flex flex-col gap-1.5 mt-2">
                       {leaderboard.map(({ medal, name, score }) => (
                         <li key={name} className="flex gap-2 items-baseline">
-                          <span className="text-xl font-bold">{medal}</span>
+                          <span className="text-xl">{medal}</span>
                           <span className="text-zinc-200 font-mono">{name}</span>
-                          <span className={`ml-auto text-sm text-emerald-300 font-semibold`}>
+                          <span className="ml-auto text-sm text-white font-semibold">
                             {score}
                           </span>
                         </li>
                       ))}
                     </ul>
-                    <div className="mt-4 text-xs text-green-300/70 font-mono">Campus zones ranked by sustainability score</div>
+                    <div className="mt-4 text-xs text-zinc-400 font-mono">Campus zones by sustainability</div>
                   </div>
                   {/* Water Usage PieChart */}
-                  <div className="bg-gradient-to-b from-zinc-900 via-slate-950 to-slate-900 border border-blue-900/40 rounded-2xl shadow-lg p-6">
+                  <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
                     <div className="flex items-center mb-2">
-                      <span className="text-sky-300 font-semibold text-lg flex-1">Block Water Usage</span>
+                      <span className="text-blue-300 font-semibold text-base flex-1">Block Water Usage</span>
                     </div>
-                    <ResponsiveContainer width="100%" height={180}>
+                    <ResponsiveContainer width="100%" height={150}>
                       <PieChart>
                         <Pie
                           data={pieData}
@@ -365,20 +528,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          innerRadius={30}
-                          outerRadius={68}
+                          innerRadius={29}
+                          outerRadius={60}
                           paddingAngle={4}
                           label={({ cx, cy, midAngle, innerRadius, outerRadius, name }) => {
                             if (typeof midAngle !== "number" || typeof innerRadius !== "number" || typeof outerRadius !== "number" || typeof cx !== "number" || typeof cy !== "number") return null;
                             const RADIAN = Math.PI / 180;
-                            const radius = innerRadius + (outerRadius - innerRadius) * 1.22;
+                            const radius = innerRadius + (outerRadius - innerRadius) * 1.12;
                             const x = cx + radius * Math.cos(-midAngle * RADIAN);
                             const y = cy + radius * Math.sin(-midAngle * RADIAN);
                             return (
                               <text
                                 x={x}
                                 y={y}
-                                fill="#c0e8ff"
+                                fill="#94acc3"
                                 textAnchor={x > cx ? "start" : "end"}
                                 dominantBaseline="middle"
                                 fontSize={12}
@@ -395,9 +558,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         </Pie>
                         <Tooltip
                           contentStyle={{
-                            background: "#10171e",
-                            border: "1px solid #38e4ec",
-                            color: "#38e4ec"
+                            background: "#161a1e",
+                            border: "1px solid #222a33",
+                            color: "#8cb4bc"
                           }}
                           formatter={(value: any) => [`${value} L`, "Water"]}
                         />
@@ -406,28 +569,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                 </motion.div>
               </div>
-
-              {/* --- THE BRAIN: AI INSIGHTS & PREDICTIONS --- */}
+              {/* --- AI INSIGHTS --- */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* AI Insights Card */}
+                {/* AI Insights */}
                 <motion.div
-                  initial={{ opacity: 0, y: 14 }}
+                  initial={{ opacity: 0, y: 11 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.38, delay: 0.19 }}
-                  className="bg-gradient-to-b from-emerald-900/15 via-slate-900 to-zinc-950 border border-cyan-600/20 rounded-2xl shadow-lg min-h-[220px] p-6 flex flex-col"
+                  transition={{ duration: 0.29, delay: 0.11 }}
+                  className="bg-zinc-900/50 border border-zinc-800 rounded-2xl min-h-[150px] p-6 flex flex-col"
                 >
-                  <div className="text-cyan-300 font-semibold text-lg mb-2 flex items-center gap-1">AI Sustainability Insights</div>
+                  <div className="text-emerald-300 font-semibold text-base mb-2 flex items-center gap-1">AI Sustainability Insights</div>
                   <div className="flex flex-col gap-2">
                     {alerts && alerts.length ? (
-                      <ul className="max-h-28 overflow-y-auto flex flex-col gap-1 pl-1">
+                      <ul className="max-h-32 overflow-y-auto flex flex-col gap-0.5 pl-1">
                         {alerts.map((alert: any, idx: number) => (
-                          <li key={idx} className="text-yellow-200/90 font-mono text-[15px] flex gap-1 items-center">
-                            <span>🟡</span>{alert.message}
+                          <li key={idx} className="text-zinc-400 font-mono text-[14px] flex gap-1 items-center">
+                            <span>•</span>{alert.message}
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <div className="text-zinc-400/70 italic text-sm">No alerts today</div>
+                      <div className="text-zinc-600 italic text-sm">No alerts today</div>
                     )}
                   </div>
                 </motion.div>
@@ -435,126 +597,129 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.39, delay: 0.21 }}
-                  className="bg-zinc-900 border border-emerald-900/60 rounded-2xl shadow-lg min-h-[220px] p-6 flex flex-col items-stretch"
+                  transition={{ duration: 0.29, delay: 0.12 }}
+                  className="bg-zinc-900/50 border border-zinc-800 rounded-2xl min-h-[150px] p-6 flex flex-col items-stretch"
                 >
-                  <span className="font-semibold text-emerald-200 mb-2 text-lg">AI Forecast</span>
+                  <span className="font-semibold text-emerald-300 mb-2 text-base">AI Forecast</span>
                   <div className="grow flex flex-col justify-center items-start gap-1">
-                    <div className="bg-emerald-800/20 px-4 py-2 rounded-xl text-cyan-200 font-mono mb-2">
-                      Next Week Forecast &rarr;
+                    <div className="bg-zinc-950 border border-zinc-800 px-4 py-2 rounded-xl text-zinc-400 font-mono mb-2">
+                      Next Week Projection →
                     </div>
                     <div className="flex flex-col gap-1 mt-2 font-mono">
                       <div className="flex gap-2 items-center">
-                        ⚡ <span className="font-semibold text-cyan-400">Energy Demand</span>
+                        <span className="text-white">⚡</span>
+                        <span className="font-semibold text-zinc-400">Energy</span>
                         <span className="font-bold text-emerald-300">{forecast.energy}</span>
                       </div>
                       <div className="flex gap-2 items-center">
-                        💧 <span className="font-semibold text-blue-300">Water</span>
-                        <span className="font-bold text-sky-300">{forecast.water}</span>
+                        <span className="text-white">💧</span>
+                        <span className="font-semibold text-zinc-400">Water</span>
+                        <span className="font-bold text-blue-300">{forecast.water}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-xs text-green-300/60 mt-3">AI-driven projection, updated daily</div>
+                  <div className="text-xs text-zinc-500 mt-4">AI-driven update (daily)</div>
                 </motion.div>
-                {/* Empty for spacing or future use */}
+                {/* Spacer/future */}
                 <div />
               </div>
 
-              {/* --- CONTROL & ROI SECTION --- */}
+              {/* --- CONTROL PANEL --- */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-                {/* Admin Control Panel */}
+                {/* Minimal Admin Control Panel */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.37, delay: 0.23 }}
-                  className="bg-gradient-to-br from-zinc-900 via-slate-950 to-black border border-emerald-700/25 rounded-2xl p-6 shadow-lg flex flex-col gap-4"
+                  transition={{ duration: 0.26, delay: 0.13 }}
+                  className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-4"
                 >
-                  <span className="text-emerald-300 font-bold text-lg mb-2">Admin Control Panel</span>
+                  <span className="text-emerald-300 font-bold text-base mb-2">Admin Control Panel</span>
                   <div className="flex flex-wrap gap-3 mb-2">
+                    {/* 1st button: the live demo */}
                     <button
-                      onClick={() => handleAdminAction("Action triggered successfully.")}
-                      className="px-5 py-2.5 bg-gradient-to-br from-emerald-700/70 to-cyan-800/60 text-white font-semibold rounded-md shadow-glow border border-emerald-400/40 hover:border-cyan-300/70 transition-all hover:scale-105 active:scale-95 focus:ring-2 focus:ring-cyan-400/60"
+                      onClick={() => !isOptimized && handleOptimizeBlock4()}
+                      className={`px-5 py-2.5 text-white font-semibold rounded-md border text-base transition
+                        ${
+                          isOptimized
+                            ? 'bg-zinc-900 border-zinc-700 text-green-400 cursor-not-allowed'
+                            : 'bg-zinc-900/80 border-zinc-700 hover:bg-zinc-900 hover:border-green-400'
+                        }
+                      `}
                       type="button"
+                      disabled={isOptimized}
+                      style={{ minWidth: 210 }}
                     >
-                      Optimize Block 3 Auditorium HVAC
+                      {isOptimized ? 'Optimized ✓' : 'Optimize Block 4 Auditorium HVAC'}
                     </button>
+                    {/* 2nd button: inspect water */}
                     <button
-                      onClick={() => handleAdminAction("Action triggered successfully.")}
-                      className="px-5 py-2.5 bg-gradient-to-br from-blue-800/70 to-sky-800/60 text-white font-semibold rounded-md shadow-glow border border-blue-400/30 hover:border-cyan-300/70 transition-all hover:scale-105 active:scale-95 focus:ring-2 focus:ring-cyan-400/60"
+                      onClick={() => showToast("Scheduled (simulated).")}
+                      className="px-5 py-2.5 bg-zinc-900/80 border border-zinc-700 text-white font-semibold rounded-md text-base hover:border-blue-300 transition"
                       type="button"
                     >
                       Schedule Water Inspection
                     </button>
-                    <button
-                      onClick={() => handleAdminAction("Action triggered successfully.")}
-                      className="px-5 py-2.5 bg-gradient-to-tr from-emerald-500/80 to-cyan-400/60 text-white font-bold rounded-md shadow-lg border-2 border-emerald-400/60 hover:border-cyan-200 focus:ring-2 focus:ring-cyan-400 animate-pulse"
-                      type="button"
-                    >
-                      📄 Generate Monthly Analytics Report
-                    </button>
+                    {/* PDF download */}
+                    <a href="/GCET_Report.pdf" download tabIndex={-1} className="inline-block">
+                      <button
+                        onClick={() => showToast("PDF report downloaded.")}
+                        className="px-5 py-2.5 bg-zinc-900/80 border border-zinc-700 text-white font-semibold rounded-md text-base hover:border-emerald-300 transition"
+                        type="button"
+                      >
+                        📄 Generate Monthly Analytics Report
+                      </button>
+                    </a>
                   </div>
-                  <div className="text-xs text-cyan-300/45 mt-2">Actions send secure operations to GCET IoT devices</div>
+                  <div className="text-xs text-zinc-500 mt-1">Actions send secure operations to GCET IoT devices</div>
                 </motion.div>
-                {/* Projected ROI Impact */}
+                {/* ROI impact */}
                 <motion.div
-                  initial={{ opacity: 0, y: 25 }}
+                  initial={{ opacity: 0, y: 23 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.39, delay: 0.27 }}
-                  className="bg-gradient-to-br from-zinc-900 via-slate-950 to-slate-900 border border-cyan-700/10 rounded-2xl shadow-lg p-6 flex flex-col gap-3 items-start justify-center"
+                  transition={{ duration: 0.24, delay: 0.15 }}
+                  className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-3 items-start justify-center"
                 >
-                  <span className="text-cyan-300 font-bold text-lg mb-1">ROI Impact</span>
+                  <span className="text-cyan-200 font-bold text-base mb-1">ROI Impact</span>
                   <div className="text-xl font-bold text-white flex gap-6 items-center mb-2">
                     <span className="flex items-center gap-1">
                       ⚡
-                      <span className="text-cyan-300 font-extrabold text-2xl">₹2.3 Lakhs</span>
+                      <span className="text-emerald-200 font-extrabold text-2xl">₹2.3 Lakhs</span>
                     </span>
                     <span className="flex items-center gap-1">
                       💧
-                      <span className="text-cyan-300 font-extrabold text-xl">1.1M L</span>
+                      <span className="text-blue-200 font-extrabold text-xl">1.1M L</span>
                     </span>
                     <span className="flex items-center gap-1">
                       🌱
-                      <span className="text-emerald-300 font-extrabold text-lg">17%</span>
+                      <span className="text-emerald-200 font-extrabold text-lg">17%</span>
                     </span>
                   </div>
-                  <div className="text-xs text-emerald-200/65 font-mono">
-                    Energy Savings: ₹2,30,000 <br />
-                    Water: 1,100,000 Liters <br />
+                  <div className="text-xs text-zinc-400 font-mono">
+                    Energy: ₹2,30,000 <br />
+                    Water: 1,100,000 L <br />
                     Carbon Reduction: 17%
                   </div>
                 </motion.div>
-                {/* Empty column for alignment */}
+                {/* Just an empty col for alignment */}
                 <div />
               </div>
+              {/* (optional) children hidden, to avoid deopt issues */}
               <div className="hidden">{children}</div>
             </motion.div>
-          ) : (
-            // Non-overview: Glowing loading state
-            <div className="flex items-center justify-center min-h-[60vh] w-full">
-              <motion.div
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="text-2xl md:text-3xl font-bold text-cyan-400 drop-shadow-glow animate-pulse text-center"
-              >
-                {activeTab === 'energy' && 'Energy Grid Module Loading...'}
-                {activeTab === 'water' && 'Water Levels Module Loading...'}
-                {activeTab === 'waste' && 'Waste Logs Module Loading...'}
-              </motion.div>
-            </div>
           )}
+          {activeTab === "energy" && <EnergyTab />}
+          {activeTab === "water" && <WaterTab />}
+          {activeTab === "waste" && <WasteTab />}
         </main>
         <div className="hidden">{children}</div>
       </div>
       <style jsx global>{`
-        html, body, #__next { background: #090e14 !important; }
+        html, body, #__next { background: #0a0c0f !important; }
         @keyframes blink-soft {
-          0%, 100% { opacity: 0.85; }
-          50% { opacity: 0.40; }
+          0%, 100% { opacity: 0.70; }
+          50% { opacity: 0.44; }
         }
-        .animate-blink-soft { animation: blink-soft 1.3s infinite; }
-        .shadow-glow { box-shadow: 0 0 22px 2px #15f3ad30, 0 1px 1px #0002; }
-        .drop-shadow-glow { filter: drop-shadow(0 1px 8px #06b6d4ac); }
+        .animate-blink-soft { animation: blink-soft 1.4s infinite; }
       `}</style>
     </div>
   );
