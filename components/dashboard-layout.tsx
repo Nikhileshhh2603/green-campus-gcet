@@ -125,7 +125,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (data) {
       // If block 4 warning alert present & not yet resolved, remember that state
       const foundBlock4 =
-        (data.alerts || []).find(a =>
+        ((data.alerts || []).find((a: any) =>
           String(a.message).toLowerCase().includes('hvac left running') &&
           String(a.message).toLowerCase().includes('block 4')
         ) !== undefined;
