@@ -19,6 +19,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
+import { FaLeaf } from "react-icons/fa6"; // For CO2 stat card
 
 // Font setup
 const _geist = Geist({ subsets: ["latin"] });
@@ -39,6 +40,8 @@ const rechartsColors = {
   contrast: '#b7bccf',  // soft slate
   fill1: '#18212B',     // chart fill dark
   fill2: '#212c39',     // chart fill lighter
+  leaf: "#7bedaf",
+  green: "#34d399",
 };
 const pieColors = [
   '#53ceb7',
@@ -48,48 +51,114 @@ const pieColors = [
 ];
 
 // Leaderboard (leave as-premium, but keep muted)
-const leaderboard = [
-  { medal: '🥇', name: 'Block 2 (Freshman)', score: 92 },
-  { medal: '🥈', name: 'Block 1 (ECE)', score: 88 },
-  { medal: '🥉', name: 'Block 3 (Auditorium)', score: 75 },
+// Block 4 will be clickable with drilldown
+const leaderboardData = [
+  { medal: '🥇', name: 'Block 2 (Freshman)', score: 92, drilldown: { hvac: 36, lighting: 36, plug: 28 } },
+  { medal: '🥈', name: 'Block 1 (ECE)', score: 88, drilldown: { hvac: 40, lighting: 44, plug: 16 } },
+  { medal: '🥉', name: 'Block 3 (Auditorium)', score: 75, drilldown: { hvac: 60, lighting: 32, plug: 8 } },
+  { medal: '',   name: 'Block 4 (Auditorium)', score: 68, drilldown: { hvac: 78, lighting: 12, plug: 10 } },
+  { medal: '',   name: 'Block 5 (AI Labs)', score: 61, drilldown: { hvac: 50, lighting: 15, plug: 35 } },
 ];
+
+// Add "CO2 Emissions Prevented" for stats card, hardcoded for now.
+const CO2_METRIC = {
+  value: "4.2 Tons",
+  subtext: "Equivalent to planting 150 trees this month"
+};
+
+const CO2_ICON = (
+  <FaLeaf className="inline align-sub text-green-300 mr-1 mb-0.5" size={19} />
+);
 
 const forecast = {
   energy: '+12%',
   water: 'Stable',
 };
 
+function getBlockNumberAndType(name: string) {
+  // e.g., "Block 4 (Auditorium)" => { number: 4, type: Auditorium }
+  const match = name.match(/Block\s*(\d+)\s*\((.+)\)/);
+  if (!match) return { number: null, type: null };
+  return { number: Number(match[1]), type: match[2] };
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('overview');
-  // Toast format: { show: bool, message: string }
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
   // Live demo: chartData and HVAC optimization button state
   const [chartData, setChartData] = useState<any[]>([]);
   const [isOptimized, setIsOptimized] = useState(false);
 
+  // Modal for leaderboard drilldown
+  const [leaderModal, setLeaderModal] = useState<null | { name: string; drilldown: { hvac: number, lighting: number, plug: number } }>(null);
+
+  // Alerts - for live dynamic 'terminal' and AI Alert resolution.
+  const [alerts, setAlerts] = useState<any[]>([]);
+
+  // Track whether "Optimize Block 4" alert was resolved, for correct terminal UI.
+  const [block4Resolved, setBlock4Resolved] = useState(false);
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Fetch and initialize
   useEffect(() => {
     fetch('/api/data')
       .then(res => res.json())
       .then(json => {
         setData(json);
         setChartData(json.blocks);
+        // Set initial alerts - see if block 4 (HVAC) warning is present
+        if (json.alerts) setAlerts(json.alerts);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  // When switching data fetch, update chartData
+  // Keep in sync if data is refetched
   useEffect(() => {
-    if (data) setChartData(data.blocks);
+    if (data) {
+      // If block 4 warning alert present & not yet resolved, remember that state
+      const foundBlock4 =
+        (data.alerts || []).find(a =>
+          String(a.message).toLowerCase().includes('hvac left running') &&
+          String(a.message).toLowerCase().includes('block 4')
+        ) !== undefined;
+      setBlock4Resolved(!foundBlock4 && isOptimized);
+      setChartData(data.blocks);
+      setAlerts(data.alerts || []);
+    }
+    // eslint-disable-next-line
   }, [data]);
+
+  // 'Live' data simulation heartbeat every 3s
+  useEffect(() => {
+    if (!chartData.length) return;
+    const interval = setInterval(() => {
+      // Only randomize a little, and don't bust the optimized Block 4 value!
+      setChartData(current =>
+        current.map((block) => {
+          // Don't touch Block 4 energy if already optimized to keep that drop
+          if (block.name === "Block 4 (Auditorium)" && isOptimized) return { ...block };
+          // Only energy and water fluctuate, keep everything else stable.
+          let deltaE = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 5)); // 1-5 up/down
+          let deltaW = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 4)); // 1-4 up/down
+          // Clamp minimum at a sensible floor (no negatives)
+          return {
+            ...block,
+            energy: Math.max(0, block.energy + deltaE),
+            water: Math.max(0, block.water + deltaW)
+          };
+        }));
+    }, 3000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line
+  }, [chartData, isOptimized]);
 
   if (!isMounted) return null;
   if (loading || !data || !chartData.length) {
@@ -110,7 +179,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     metrics,
     aqi,
     energyRedirection,
-    alerts = [],
   } = data;
 
   // Pie for water (by block)
@@ -126,7 +194,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { x: 2, y: sustainabilityScore ?? 87 },
   ];
 
-  // HVAC optimization: fake data mutation & toasting
+  // HVAC optimization: fake data mutation, toast, alert resolution
   function handleOptimizeBlock4() {
     setToast({ show: true, message: "HVAC optimized. Power dropping..." });
     setChartData(chartData =>
@@ -137,6 +205,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )
     );
     setIsOptimized(true);
+
+    // AI Alert terminal auto-resolve
+    setAlerts(prevAlerts => {
+      // Find and remove existing Block 4 warning
+      let newAlerts = prevAlerts.filter((a: any) =>
+        !(
+          String(a.message).toLowerCase().includes('hvac left running') &&
+          String(a.message).toLowerCase().includes('block 4')
+        )
+      );
+      // Now add the "RESOLVED" at the top
+      newAlerts = [
+        {
+          type: 'RESOLVED',
+          message: "AI overridden HVAC controls. Power stabilized.",
+          timestamp: Date.now()
+        },
+        ...newAlerts
+      ];
+      return newAlerts;
+    });
+    setBlock4Resolved(true);
+
     setTimeout(() => setToast({ show: false, message: '' }), 2200);
   }
 
@@ -144,6 +235,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   function showToast(message: string, duration = 1900) {
     setToast({ show: true, message });
     setTimeout(() => setToast({ show: false, message: '' }), duration);
+  }
+
+  // Modal drilldown: handles both open & close
+  function LeaderboardDrilldown({ open, onClose, name, drilldown }: { open: boolean; onClose: () => void; name: string, drilldown: { hvac: number, lighting: number, plug: number } }) {
+    if (!open) return null;
+    return (
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 26 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="bg-zinc-900/90 rounded-2xl border border-zinc-800 min-w-[300px] max-w-full max-w-xs mx-3 p-8 relative overflow-hidden"
+        >
+          <button
+            className="absolute top-3 right-4 text-zinc-500 hover:text-white p-1 rounded transition focus:outline-none"
+            aria-label="Close"
+            onClick={onClose}
+            tabIndex={0}
+          >
+            ×
+          </button>
+          <div className="text-lg font-semibold text-white mb-3">{name} Breakdown</div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span>HVAC</span>
+              <span className="font-bold text-white">{drilldown.hvac}%</span>
+            </div>
+            <div className="flex items-center justify-between text-zinc-400">
+              <span>Lighting</span>
+              <span className="font-bold text-white">{drilldown.lighting}%</span>
+            </div>
+            <div className="flex items-center justify-between text-zinc-400">
+              <span>Plug Loads</span>
+              <span className="font-bold text-white">{drilldown.plug}%</span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
   }
 
   function Sidebar({ mobile }: { mobile?: boolean }) {
@@ -181,6 +311,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // -------- TABS ---------
   // Full-width minimalist AreaChart for Energy tab
   function EnergyTab() {
+    // Get campus average for insight (excluding Block 5 for less skew? We'll use all for demo)
+    const avg =
+      chartData.length
+        ? Math.round(chartData.reduce((sum, b) => sum + b.energy, 0) / chartData.length)
+        : 1;
+    const block5 =
+      chartData.find(block => block.name.includes("Block 5")) || { energy: avg * 3, name: "Block 5 (AI Labs)" };
     return (
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -209,8 +346,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </defs>
               <CartesianGrid stroke="#242a33" strokeDasharray="3 4" opacity={0.09} />
               <XAxis dataKey="name" tick={{ fill: "#b7bccf", fontSize: 13, fontWeight: 500 }} axisLine={false} tickLine={false} />
-              <YAxis orientation="left" yAxisId="energy" tick={{ fill: "#33ecce", fontSize: 13 }} axisLine={false} tickLine={false} />
-              <YAxis orientation="right" yAxisId="water" tick={{ fill: "#59b5e0", fontSize: 13 }} axisLine={false} tickLine={false} />
+              <YAxis orientation="left" yAxisId="energy" tick={{ fill: "#33ecce", fontSize: 13 }} axisLine={false} tickLine={false} label={{ value: "Energy (kWh)", angle: -90, fill:"#b7bccf", dx:-10, position:"insideLeft" }} />
+              <YAxis orientation="right" yAxisId="water" tick={{ fill: "#59b5e0", fontSize: 13 }} axisLine={false} tickLine={false} label={{ value: "Water (L)", angle: 90, fill:"#b7bccf", dx: 15, position:"insideRight" }} />
               <Tooltip
                 wrapperStyle={{ border: 'none', borderRadius: 8, boxShadow: '0 2px 4px #1112', background: 'none' }}
                 contentStyle={{ background: '#131518', border: '1px solid #232832', color: '#fff', borderRadius: 8, fontSize: 15 }}
@@ -241,12 +378,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </AreaChart>
           </ResponsiveContainer>
         </div>
+        {/* Insight Card */}
+        <div className="mt-6 mb-2">
+          <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-4 font-sans text-zinc-300 text-sm flex items-start gap-3">
+            <span className="text-emerald-300 text-lg">ℹ️</span>
+            Insight: <span className="text-white font-medium">
+              Block 5 (AI Labs) is currently drawing 3x more power than the campus average due to continuous server loads.
+            </span>
+          </div>
+        </div>
       </motion.div>
     );
   }
 
   // Water tab: BarChart
   function WaterTab() {
+    const eceBlock = chartData.find(b => b.name.includes("Block 1 (ECE)"));
     return (
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -260,7 +407,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <BarChart data={chartData} margin={{ top: 16, right: 32, left: 16, bottom: 18 }}>
               <CartesianGrid stroke="#232832" strokeDasharray="2 4" opacity={0.10} />
               <XAxis dataKey="name" tick={{ fill: '#b7bccf', fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: rechartsColors.water, fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: rechartsColors.water, fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false}
+                label={{ value: "Water (L)", angle: -90, fill:"#b7bccf", dx:-10, position:"insideLeft" }}
+              />
               <Tooltip
                 wrapperStyle={{ border: 'none', background: 'none' }}
                 contentStyle={{ background: '#181d22', border: '1px solid #272d37', color: '#fff', borderRadius: 8, fontSize: 16 }}
@@ -276,6 +425,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+        {/* Insight Card */}
+        <div className="mt-6 mb-2">
+          <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-4 font-sans text-zinc-300 text-sm flex items-start gap-3">
+            <span className="text-blue-300 text-lg">💧</span>
+            Insight: <span className="text-white font-medium">
+              Block 1 (ECE) rainwater harvesting is operating at peak efficiency, filling 80% of the reserve.
+            </span>
+          </div>
         </div>
       </motion.div>
     );
@@ -303,9 +461,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="text-zinc-500 select-none mb-2">// Waste system log — GCET</div>
               {alerts && alerts.length ? (
                 alerts.map((a: any, idx: number) => (
-                  <div key={idx} className="flex gap-2 items-center leading-relaxed">
-                    <span className="text-zinc-400">{"[" + (a.type?.toUpperCase() || "-") + "]"}</span>
-                    <span className="text-zinc-300">{a.message}</span>
+                  <div key={idx} className={`flex gap-2 items-center leading-relaxed ${a.type === "RESOLVED" ? "text-green-400 font-semibold" : a.type === "WARNING" ? "text-yellow-400" : "text-zinc-300"}`}>
+                    <span>
+                      {"[" + (a.type?.toUpperCase() || "-") + "]"}
+                    </span>
+                    <span>{a.message}</span>
                   </div>
                 ))
               ) : (
@@ -322,6 +482,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen w-full font-sans bg-black relative flex flex-col md:flex-row">
       <Sidebar />
       <Sidebar mobile />
+
+      <LeaderboardDrilldown
+        open={!!leaderModal}
+        onClose={() => setLeaderModal(null)}
+        name={leaderModal?.name ?? ""}
+        drilldown={leaderModal?.drilldown ?? { hvac: 0, lighting: 0, plug: 0 }}
+      />
 
       <div className="flex-1 min-h-screen flex flex-col md:pl-56 bg-black">
         {/* Header */}
@@ -366,7 +533,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className="flex flex-col gap-8"
             >
               {/* --- METRICS ROW --- */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                 {/* Sustainability Score */}
                 <div className="col-span-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col relative overflow-hidden min-h-[120px]">
                   <div className="mb-2 flex items-center gap-2">
@@ -409,6 +576,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {metrics.energySaved}
                   </span>
                   <span className="text-xs text-zinc-400">kWh this week</span>
+                </div>
+                {/* CO2 Emissions Prevented */}
+                <div className="col-span-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-1 min-h-[120px]">
+                  <span className="text-sm font-semibold text-zinc-400 mb-1">
+                    CO<sub>2</sub> Emissions Prevented
+                  </span>
+                  <span className="text-2xl md:text-3xl font-bold text-white flex items-center">
+                    {CO2_ICON}{CO2_METRIC.value}
+                  </span>
+                  <span className="text-xs text-zinc-400">{CO2_METRIC.subtext}</span>
                 </div>
                 {/* Water Harvested */}
                 <div className="col-span-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-1 min-h-[120px]">
@@ -465,7 +642,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <LineChart data={chartData} margin={{ top: 5, right: 18, left: 0, bottom: 8 }}>
                           <CartesianGrid stroke="#232a33" strokeDasharray="3 6" opacity={0.07} />
                           <XAxis dataKey="name" tick={{ fill: "#b7bccf", fontWeight: 500 }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fill: rechartsColors.energy, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fill: rechartsColors.energy, fontWeight: 600 }} axisLine={false} tickLine={false} label={{ value: "kWh", angle: -90, fill: "#b7bccf", position: "insideLeft", dx: -10 }} />
                           <Tooltip
                             contentStyle={{
                               background: "#191f22",
@@ -491,6 +668,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
+                    {/* Insight */}
+                    <div className="mt-4 mb-2">
+                      <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-3 font-sans text-zinc-300 text-sm flex items-start gap-3">
+                        <span className="text-emerald-300 text-lg">ℹ️</span>
+                        Insight: <span className="text-white font-medium">
+                          Block 5 (AI Labs) is currently drawing 3x more power than the campus average due to continuous server loads.
+                        </span>
+                      </div>
+                    </div>
                   </motion.div>
                 </div>
                 {/* Leaderboard & Pie */}
@@ -503,8 +689,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
                     <span className="text-base font-semibold text-emerald-300 mb-1">The Green Leaderboard</span>
                     <ul className="flex flex-col gap-1.5 mt-2">
-                      {leaderboard.map(({ medal, name, score }) => (
-                        <li key={name} className="flex gap-2 items-baseline">
+                      {leaderboardData.map(({ medal, name, score, drilldown }) => (
+                        <li
+                          key={name}
+                          className="flex gap-2 items-baseline rounded cursor-pointer transition hover:bg-zinc-900/90 px-2 py-1 select-none"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`View ${name} breakdown`}
+                          onClick={() => setLeaderModal({ name, drilldown })}
+                          onKeyDown={e => e.key === 'Enter' && setLeaderModal({ name, drilldown })}
+                        >
                           <span className="text-xl">{medal}</span>
                           <span className="text-zinc-200 font-mono">{name}</span>
                           <span className="ml-auto text-sm text-white font-semibold">
@@ -583,7 +777,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {alerts && alerts.length ? (
                       <ul className="max-h-32 overflow-y-auto flex flex-col gap-0.5 pl-1">
                         {alerts.map((alert: any, idx: number) => (
-                          <li key={idx} className="text-zinc-400 font-mono text-[14px] flex gap-1 items-center">
+                          <li key={idx} className={`font-mono text-[14px] flex gap-1 items-center
+                            ${alert.type === "RESOLVED" ? "text-green-400 font-bold" : alert.type === "WARNING" ? "text-yellow-400" : "text-zinc-400"}
+                          `}>
                             <span>•</span>{alert.message}
                           </li>
                         ))}
