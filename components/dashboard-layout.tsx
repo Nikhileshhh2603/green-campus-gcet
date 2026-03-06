@@ -112,11 +112,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (data) {
-      const foundBlock4 =
-        ((data.alerts || []).find((a: any) =>
-          String(a.message).toLowerCase().includes('hvac left running') &&
-          String(a.message).toLowerCase().includes('block 4')
-        ) !== undefined;
+      const foundBlock4 = (data.alerts || []).some((a: any) => {
+        if (!a || !a.message) return false;
+        const msg = String(a.message).toLowerCase();
+        return msg.includes("hvac left running") && msg.includes("block 4");
+      });
       setBlock4Resolved(!foundBlock4 && isOptimized);
       setChartData(data.blocks);
       setAlerts(data.alerts || []);
@@ -129,15 +129,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setChartData(current =>
         current.map((block) => {
           if (block.name === "Block 4 (Auditorium)" && isOptimized) return { ...block };
-          let deltaE = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 5));
-          let deltaW = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 4));
+          let deltaE = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 1));
+          let deltaW = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 1));
           return {
             ...block,
             energy: Math.max(0, block.energy + deltaE),
             water: Math.max(0, block.water + deltaW)
           };
         }));
-    }, 3000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [chartData, isOptimized]);
 
