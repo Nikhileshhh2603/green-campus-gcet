@@ -19,7 +19,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { FaLeaf } from "react-icons/fa6"; // For CO2 stat card
+import { FaLeaf } from "react-icons/fa6";
 
 // Font setup
 const _geist = Geist({ subsets: ["latin"] });
@@ -35,11 +35,11 @@ const sidebarLinks = [
 
 // Minimal, premium color palette
 const rechartsColors = {
-  energy: '#5be2b1',    // muted premium emerald
-  water: '#59b5e0',     // calm cyan
-  contrast: '#b7bccf',  // soft slate
-  fill1: '#18212B',     // chart fill dark
-  fill2: '#212c39',     // chart fill lighter
+  energy: '#5be2b1',
+  water: '#59b5e0',
+  contrast: '#b7bccf',
+  fill1: '#18212B',
+  fill2: '#212c39',
   leaf: "#7bedaf",
   green: "#34d399",
 };
@@ -50,8 +50,7 @@ const pieColors = [
   '#b7bccf',
 ];
 
-// Leaderboard (leave as-premium, but keep muted)
-// Block 4 will be clickable with drilldown
+// Leaderboard
 const leaderboardData = [
   { medal: '🥇', name: 'Block 2 (Freshman)', score: 92, drilldown: { hvac: 36, lighting: 36, plug: 28 } },
   { medal: '🥈', name: 'Block 1 (ECE)', score: 88, drilldown: { hvac: 40, lighting: 44, plug: 16 } },
@@ -60,7 +59,6 @@ const leaderboardData = [
   { medal: '',   name: 'Block 5 (AI Labs)', score: 61, drilldown: { hvac: 50, lighting: 15, plug: 35 } },
 ];
 
-// Add "CO2 Emissions Prevented" for stats card, hardcoded for now.
 const CO2_METRIC = {
   value: "4.2 Tons",
   subtext: "Equivalent to planting 150 trees this month"
@@ -76,7 +74,6 @@ const forecast = {
 };
 
 function getBlockNumberAndType(name: string) {
-  // e.g., "Block 4 (Auditorium)" => { number: 4, type: Auditorium }
   const match = name.match(/Block\s*(\d+)\s*\((.+)\)/);
   if (!match) return { number: null, type: null };
   return { number: Number(match[1]), type: match[2] };
@@ -89,41 +86,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [activeTab, setActiveTab] = useState('overview');
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
-  // Live demo: chartData and HVAC optimization button state
   const [chartData, setChartData] = useState<any[]>([]);
   const [isOptimized, setIsOptimized] = useState(false);
 
-  // Modal for leaderboard drilldown
   const [leaderModal, setLeaderModal] = useState<null | { name: string; drilldown: { hvac: number, lighting: number, plug: number } }>(null);
 
-  // Alerts - for live dynamic 'terminal' and AI Alert resolution.
   const [alerts, setAlerts] = useState<any[]>([]);
-
-  // Track whether "Optimize Block 4" alert was resolved, for correct terminal UI.
   const [block4Resolved, setBlock4Resolved] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Fetch and initialize
   useEffect(() => {
     fetch('/api/data')
       .then(res => res.json())
       .then(json => {
         setData(json);
         setChartData(json.blocks);
-        // Set initial alerts - see if block 4 (HVAC) warning is present
         if (json.alerts) setAlerts(json.alerts);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  // Keep in sync if data is refetched
   useEffect(() => {
     if (data) {
-      // If block 4 warning alert present & not yet resolved, remember that state
       const foundBlock4 =
         ((data.alerts || []).find((a: any) =>
           String(a.message).toLowerCase().includes('hvac left running') &&
@@ -133,22 +121,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setChartData(data.blocks);
       setAlerts(data.alerts || []);
     }
-    // eslint-disable-next-line
   }, [data]);
 
-  // 'Live' data simulation heartbeat every 3s
   useEffect(() => {
     if (!chartData.length) return;
     const interval = setInterval(() => {
-      // Only randomize a little, and don't bust the optimized Block 4 value!
       setChartData(current =>
         current.map((block) => {
-          // Don't touch Block 4 energy if already optimized to keep that drop
           if (block.name === "Block 4 (Auditorium)" && isOptimized) return { ...block };
-          // Only energy and water fluctuate, keep everything else stable.
-          let deltaE = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 5)); // 1-5 up/down
-          let deltaW = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 4)); // 1-4 up/down
-          // Clamp minimum at a sensible floor (no negatives)
+          let deltaE = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 5));
+          let deltaW = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 4));
           return {
             ...block,
             energy: Math.max(0, block.energy + deltaE),
@@ -157,12 +139,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }));
     }, 3000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line
   }, [chartData, isOptimized]);
 
   if (!isMounted) return null;
   if (loading || !data || !chartData.length) {
-    // Minimalist loader, no neon, no shadow
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-2xl md:text-4xl font-semibold text-zinc-300 animate-pulse text-center font-sans">
@@ -172,7 +152,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // DATA STRUCTURE
   const {
     sustainabilityScore,
     weeklyTrend,
@@ -181,20 +160,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     energyRedirection,
   } = data;
 
-  // Pie for water (by block)
   const pieData = chartData.map((block: any) => ({
     name: block.name,
     value: block.water,
   }));
 
-  // Minimal trend for sustainability
   const sustainabilityMiniTrend = [
     { x: 0, y: Math.max((sustainabilityScore ?? 87) - (weeklyTrend ?? 4) - 3, 0) },
     { x: 1, y: Math.max((sustainabilityScore ?? 87) - 2, 0) },
     { x: 2, y: sustainabilityScore ?? 87 },
   ];
 
-  // HVAC optimization: fake data mutation, toast, alert resolution
   function handleOptimizeBlock4() {
     setToast({ show: true, message: "HVAC optimized. Power dropping..." });
     setChartData(chartData =>
@@ -206,16 +182,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
     setIsOptimized(true);
 
-    // AI Alert terminal auto-resolve
     setAlerts(prevAlerts => {
-      // Find and remove existing Block 4 warning
       let newAlerts = prevAlerts.filter((a: any) =>
         !(
           String(a.message).toLowerCase().includes('hvac left running') &&
           String(a.message).toLowerCase().includes('block 4')
         )
       );
-      // Now add the "RESOLVED" at the top
       newAlerts = [
         {
           type: 'RESOLVED',
@@ -231,13 +204,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setTimeout(() => setToast({ show: false, message: '' }), 2200);
   }
 
-  // Minimal toast
   function showToast(message: string, duration = 1900) {
     setToast({ show: true, message });
     setTimeout(() => setToast({ show: false, message: '' }), duration);
   }
 
-  // Modal drilldown: handles both open & close
   function LeaderboardDrilldown({ open, onClose, name, drilldown }: { open: boolean; onClose: () => void; name: string, drilldown: { hvac: number, lighting: number, plug: number } }) {
     if (!open) return null;
     return (
@@ -308,16 +279,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // -------- TABS ---------
-  // Full-width minimalist AreaChart for Energy tab
+  // -------- EXPANDED TAB GRIDS (for B2B dense) ---------
+  function DenseCard({ title, value, description, children }:
+    { title: string; value?: React.ReactNode; description?: React.ReactNode; children?: React.ReactNode }
+  ) {
+    return (
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 flex flex-col gap-1 min-h-[90px] mb-0">
+        <div className="text-xs font-semibold text-zinc-400 mb-0.5">{title}</div>
+        {value !== undefined && value !== null && (
+          <div className="text-lg font-bold text-white">{value}</div>
+        )}
+        {description ? <div className="text-xs text-zinc-400">{description}</div> : null}
+        {children}
+      </div>
+    );
+  }
+
   function EnergyTab() {
-    // Get campus average for insight (excluding Block 5 for less skew? We'll use all for demo)
-    const avg =
-      chartData.length
-        ? Math.round(chartData.reduce((sum, b) => sum + b.energy, 0) / chartData.length)
-        : 1;
-    const block5 =
-      chartData.find(block => block.name.includes("Block 5")) || { energy: avg * 3, name: "Block 5 (AI Labs)" };
+    const block4 = chartData.find((b) => b.name.includes('Block 4'));
     return (
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -325,75 +304,104 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         transition={{ duration: 0.43 }}
         className="w-full"
       >
-        <div className="flex flex-col md:flex-row justify-between items-end mt-3 mb-8">
-          <div className="text-xl md:text-2xl font-semibold text-white tracking-tight">Campus Energy vs Water</div>
-        </div>
-        <div className="w-full h-[404px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-0.5 md:p-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={chartData}
-              margin={{ top: 28, right: 36, left: 16, bottom: 8 }}
-            >
-              <defs>
-                <linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="10%" stopColor={rechartsColors.energy} stopOpacity={0.19} />
-                  <stop offset="100%" stopColor={rechartsColors.fill1} stopOpacity={0.00} />
-                </linearGradient>
-                <linearGradient id="waterFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="15%" stopColor={rechartsColors.water} stopOpacity={0.13} />
-                  <stop offset="95%" stopColor={rechartsColors.fill2} stopOpacity={0.00} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#242a33" strokeDasharray="3 4" opacity={0.09} />
-              <XAxis dataKey="name" tick={{ fill: "#b7bccf", fontSize: 13, fontWeight: 500 }} axisLine={false} tickLine={false} />
-              <YAxis orientation="left" yAxisId="energy" tick={{ fill: "#33ecce", fontSize: 13 }} axisLine={false} tickLine={false} label={{ value: "Energy (kWh)", angle: -90, fill:"#b7bccf", dx:-10, position:"insideLeft" }} />
-              <YAxis orientation="right" yAxisId="water" tick={{ fill: "#59b5e0", fontSize: 13 }} axisLine={false} tickLine={false} label={{ value: "Water (L)", angle: 90, fill:"#b7bccf", dx: 15, position:"insideRight" }} />
-              <Tooltip
-                wrapperStyle={{ border: 'none', borderRadius: 8, boxShadow: '0 2px 4px #1112', background: 'none' }}
-                contentStyle={{ background: '#131518', border: '1px solid #232832', color: '#fff', borderRadius: 8, fontSize: 15 }}
-                labelStyle={{ color: '#b7bccf', fontWeight: 600, border: 0 }}
-              />
-              <Area
-                yAxisId="energy"
-                type="monotone"
-                dataKey="energy"
-                name="Energy (kWh)"
-                stroke={rechartsColors.energy}
-                fill="url(#energyFill)"
-                strokeWidth={3}
-                dot={{ r: 5, fill: rechartsColors.fill1, stroke: rechartsColors.energy, strokeWidth: 2 }}
-                activeDot={{ r: 7, fill: '#1A2E2D', stroke: rechartsColors.energy, strokeWidth: 4, opacity: 0.44 }}
-              />
-              <Area
-                yAxisId="water"
-                type="monotone"
-                dataKey="water"
-                name="Water (L)"
-                stroke={rechartsColors.water}
-                fill="url(#waterFill)"
-                strokeWidth={3}
-                dot={{ r: 5, fill: rechartsColors.fill2, stroke: rechartsColors.water, strokeWidth: 2 }}
-                activeDot={{ r: 7, fill: '#19272D', stroke: rechartsColors.water, strokeWidth: 4, opacity: 0.39 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-        {/* Insight Card */}
-        <div className="mt-6 mb-2">
-          <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-4 font-sans text-zinc-300 text-sm flex items-start gap-3">
-            <span className="text-emerald-300 text-lg">ℹ️</span>
-            Insight: <span className="text-white font-medium">
-              Block 5 (AI Labs) is currently drawing 3x more power than the campus average due to continuous server loads.
-            </span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Chart + Insight (left, span 2) */}
+          <div className="lg:col-span-2 flex flex-col">
+            <div className="w-full h-[404px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-1 md:p-3">
+              <ResponsiveContainer width="100%" height="95%">
+                <AreaChart
+                  data={chartData}
+                  margin={{ top: 28, right: 36, left: 16, bottom: 8 }}
+                >
+                  <defs>
+                    <linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="10%" stopColor={rechartsColors.energy} stopOpacity={0.19} />
+                      <stop offset="100%" stopColor={rechartsColors.fill1} stopOpacity={0.00} />
+                    </linearGradient>
+                    <linearGradient id="waterFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="15%" stopColor={rechartsColors.water} stopOpacity={0.13} />
+                      <stop offset="95%" stopColor={rechartsColors.fill2} stopOpacity={0.00} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#242a33" strokeDasharray="3 4" opacity={0.09} />
+                  <XAxis dataKey="name" tick={{ fill: "#b7bccf", fontSize: 13, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <YAxis orientation="left" yAxisId="energy" tick={{ fill: "#33ecce", fontSize: 13 }} axisLine={false} tickLine={false} label={{ value: "Energy (kWh)", angle: -90, fill:"#b7bccf", dx:-10, position:"insideLeft" }} />
+                  <YAxis orientation="right" yAxisId="water" tick={{ fill: "#59b5e0", fontSize: 13 }} axisLine={false} tickLine={false} label={{ value: "Water (L)", angle: 90, fill:"#b7bccf", dx: 15, position:"insideRight" }} />
+                  <Tooltip
+                    wrapperStyle={{ border: 'none', borderRadius: 8, boxShadow: '0 2px 4px #1112', background: 'none' }}
+                    contentStyle={{ background: '#131518', border: '1px solid #232832', color: '#fff', borderRadius: 8, fontSize: 15 }}
+                    labelStyle={{ color: '#b7bccf', fontWeight: 600, border: 0 }}
+                  />
+                  <Area
+                    yAxisId="energy"
+                    type="monotone"
+                    dataKey="energy"
+                    name="Energy (kWh)"
+                    stroke={rechartsColors.energy}
+                    fill="url(#energyFill)"
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: rechartsColors.fill1, stroke: rechartsColors.energy, strokeWidth: 2 }}
+                    activeDot={{ r: 7, fill: '#1A2E2D', stroke: rechartsColors.energy, strokeWidth: 4, opacity: 0.44 }}
+                  />
+                  <Area
+                    yAxisId="water"
+                    type="monotone"
+                    dataKey="water"
+                    name="Water (L)"
+                    stroke={rechartsColors.water}
+                    fill="url(#waterFill)"
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: rechartsColors.fill2, stroke: rechartsColors.water, strokeWidth: 2 }}
+                    activeDot={{ r: 7, fill: '#19272D', stroke: rechartsColors.water, strokeWidth: 4, opacity: 0.39 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Main chart insight below */}
+            <div className="mt-6">
+              <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-4 font-sans text-zinc-300 text-sm flex items-start gap-3">
+                <span className="text-emerald-300 text-lg">ℹ️</span>
+                Insight: <span className="text-white font-medium">
+                  The 210 kWh wasted this week is equivalent to keeping all the corridor and classroom lights in Block 1 fully powered for 4 entire days.
+                </span>
+              </div>
+            </div>
+          </div>
+          {/* Stacked right-side metric cards */}
+          <div className="flex flex-col gap-4">
+            <DenseCard
+              title="Peak Load Time"
+              value="2:30 PM (Block 4)"
+              description="Maximum energy draw was observed this week"
+            />
+            <DenseCard
+              title="Estimated Cost Savings"
+              value="₹14,500 this week"
+              description="Based on current grid tariffs"
+            />
+            <DenseCard title="Load Breakdown">
+              <ul className="mt-1 space-y-1 text-sm text-zinc-400">
+                <li className="flex justify-between">
+                  <span>HVAC</span>
+                  <span className="font-semibold text-white">65%</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Lighting</span>
+                  <span className="font-semibold text-white">20%</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Servers/Plugs</span>
+                  <span className="font-semibold text-white">15%</span>
+                </li>
+              </ul>
+            </DenseCard>
           </div>
         </div>
       </motion.div>
     );
   }
 
-  // Water tab: BarChart
   function WaterTab() {
-    const eceBlock = chartData.find(b => b.name.includes("Block 1 (ECE)"));
     return (
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -401,77 +409,132 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         transition={{ duration: 0.35 }}
         className="w-full"
       >
-        <div className="text-xl md:text-2xl font-semibold text-white mb-8 tracking-tight">Water Usage By Block</div>
-        <div className="w-full h-[390px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-0.5 md:p-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 16, right: 32, left: 16, bottom: 18 }}>
-              <CartesianGrid stroke="#232832" strokeDasharray="2 4" opacity={0.10} />
-              <XAxis dataKey="name" tick={{ fill: '#b7bccf', fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: rechartsColors.water, fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false}
-                label={{ value: "Water (L)", angle: -90, fill:"#b7bccf", dx:-10, position:"insideLeft" }}
-              />
-              <Tooltip
-                wrapperStyle={{ border: 'none', background: 'none' }}
-                contentStyle={{ background: '#181d22', border: '1px solid #272d37', color: '#fff', borderRadius: 8, fontSize: 16 }}
-                labelStyle={{ color: '#b7bccf', fontWeight: 600, border: 0 }}
-                formatter={v => [`${v} L`, 'Water']}
-              />
-              <Bar
-                dataKey="water"
-                fill={rechartsColors.water}
-                name="Water (L)"
-                barSize={38}
-                radius={[8, 8, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        {/* Insight Card */}
-        <div className="mt-6 mb-2">
-          <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-4 font-sans text-zinc-300 text-sm flex items-start gap-3">
-            <span className="text-blue-300 text-lg">💧</span>
-            Insight: <span className="text-white font-medium">
-              Block 1 (ECE) rainwater harvesting is operating at peak efficiency, filling 80% of the reserve.
-            </span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 flex flex-col">
+            <div className="w-full h-[390px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-1 md:p-3">
+              <ResponsiveContainer width="100%" height="95%">
+                <BarChart data={chartData} margin={{ top: 16, right: 32, left: 16, bottom: 18 }}>
+                  <CartesianGrid stroke="#232832" strokeDasharray="2 4" opacity={0.10} />
+                  <XAxis dataKey="name" tick={{ fill: '#b7bccf', fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: rechartsColors.water, fontWeight: 500, fontSize: 14 }} axisLine={false} tickLine={false}
+                    label={{ value: "Water (L)", angle: -90, fill:"#b7bccf", dx:-10, position:"insideLeft" }}
+                  />
+                  <Tooltip
+                    wrapperStyle={{ border: 'none', background: 'none' }}
+                    contentStyle={{ background: '#181d22', border: '1px solid #272d37', color: '#fff', borderRadius: 8, fontSize: 16 }}
+                    labelStyle={{ color: '#b7bccf', fontWeight: 600, border: 0 }}
+                    formatter={v => [`${v} L`, 'Water']}
+                  />
+                  <Bar
+                    dataKey="water"
+                    fill={rechartsColors.water}
+                    name="Water (L)"
+                    barSize={38}
+                    radius={[8, 8, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-6">
+              <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-4 font-sans text-zinc-300 text-sm flex items-start gap-3">
+                <span className="text-blue-300 text-lg">💧</span>
+                Insight: <span className="text-white font-medium">
+                  Block 1 (ECE) rainwater harvesting is operating at peak efficiency, filling 80% of the reserve.
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-4">
+            <DenseCard
+              title="Source Ratio"
+              value="Rainwater (70%) vs Borewell (30%)"
+              description="Dynamic distribution calculated for this week"
+            />
+            <DenseCard
+              title="Purity Status"
+              value="TDS: 120 ppm (Optimal)"
+              description="Water safe for campus use"
+            />
+            <DenseCard
+              title="Leak Detection"
+              value="Status: Secure"
+              description="Zero pressure drops detected in the last 48 hours."
+            />
           </div>
         </div>
       </motion.div>
     );
   }
 
-  // Waste Logs: terminal-style, ultra clean
   function WasteTab() {
     return (
       <motion.div
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.36 }}
-        className="w-full flex flex-col items-center"
+        className="w-full"
       >
-        <div className="w-full max-w-2xl rounded-xl bg-zinc-900/60 border border-zinc-800 px-0 pt-5 pb-0">
-          <div className="px-6 pb-2 flex items-center justify-between">
-            <div className="text-lg md:text-xl font-semibold tracking-tight text-white">Waste Segregation Logs</div>
-            <div className="text-sm text-zinc-400 font-mono">Waste Segregated: <span className="text-emerald-300 font-bold">{metrics.wasteSegregated ?? '--'}</span></div>
-          </div>
-          <div className="px-6 pb-5 pt-1">
-            <div
-              className="w-full rounded bg-black px-4 py-4 font-mono text-[15px] text-zinc-300 border border-zinc-800"
-              style={{ fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", monospace' }}
-            >
-              <div className="text-zinc-500 select-none mb-2">// Waste system log — GCET</div>
-              {alerts && alerts.length ? (
-                alerts.map((a: any, idx: number) => (
-                  <div key={idx} className={`flex gap-2 items-center leading-relaxed ${a.type === "RESOLVED" ? "text-green-400 font-semibold" : a.type === "WARNING" ? "text-yellow-400" : "text-zinc-300"}`}>
-                    <span>
-                      {"[" + (a.type?.toUpperCase() || "-") + "]"}
-                    </span>
-                    <span>{a.message}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-zinc-600 font-light italic">No system waste alerts.</div>
-              )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Terminal log */}
+          <div className="lg:col-span-2 flex flex-col">
+            <div className="w-full max-w-full rounded-xl bg-zinc-900/60 border border-zinc-800 px-0 pt-5 pb-0">
+              <div className="px-6 pb-2 flex items-center justify-between">
+                <div className="text-lg md:text-xl font-semibold tracking-tight text-white">Waste Segregation Logs</div>
+                <div className="text-sm text-zinc-400 font-mono">Waste Segregated: <span className="text-emerald-300 font-bold">{metrics.wasteSegregated ?? '--'}</span></div>
+              </div>
+              <div className="px-6 pb-5 pt-1">
+                <div
+                  className="w-full rounded bg-black px-4 py-4 font-mono text-[15px] text-zinc-300 border border-zinc-800"
+                  style={{ fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", monospace' }}
+                >
+                  <div className="text-zinc-500 select-none mb-2">// Waste system log — GCET</div>
+                  {alerts && alerts.length ? (
+                    alerts.map((a: any, idx: number) => (
+                      <div key={idx} className={`flex gap-2 items-center leading-relaxed ${a.type === "RESOLVED" ? "text-green-400 font-semibold" : a.type === "WARNING" ? "text-yellow-400" : "text-zinc-300"}`}>
+                        <span>
+                          {"[" + (a.type?.toUpperCase() || "-") + "]"}
+                        </span>
+                        <span>{a.message}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-zinc-600 font-light italic">No system waste alerts.</div>
+                  )}
+                </div>
+              </div>
             </div>
+          </div>
+          {/* Stacked right-side stats */}
+          <div className="flex flex-col gap-4">
+            <DenseCard
+              title="Total Segregated"
+              value="91% Efficiency"
+              description="Campus-wide waste sorting"
+            />
+            <DenseCard
+              title="Category Breakdown"
+              value=""
+            >
+              <ul className="mt-0.5 space-y-1 text-sm text-zinc-400">
+                <li className="flex justify-between">
+                  <span>Dry Waste</span>
+                  <span className="font-semibold text-white">55%</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Wet/Food</span>
+                  <span className="font-semibold text-white">35%</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>E-Waste</span>
+                  <span className="font-semibold text-white">10%</span>
+                </li>
+              </ul>
+            </DenseCard>
+            <DenseCard
+              title="Compost Generated"
+              value="45 kg"
+              description="Ready for campus gardens"
+            />
           </div>
         </div>
       </motion.div>
@@ -507,7 +570,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
         </header>
-        {/* Minimal toast (no glow, subtle border only) */}
+        {/* Minimal toast */}
         <AnimatePresence>
           {toast.show &&
             <motion.div
@@ -524,7 +587,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </AnimatePresence>
 
         <main className="flex-1 flex flex-col py-4 md:py-10 px-2 md:px-8 max-w-[100vw] transition">
-
           {activeTab === 'overview' && (
             <motion.div
               initial={{ opacity: 0, y: 24 }}
@@ -816,13 +878,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                   <div className="text-xs text-zinc-500 mt-4">AI-driven update (daily)</div>
                 </motion.div>
-                {/* Spacer/future */}
                 <div />
               </div>
 
               {/* --- CONTROL PANEL --- */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-                {/* Minimal Admin Control Panel */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -831,7 +891,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   <span className="text-emerald-300 font-bold text-base mb-2">Admin Control Panel</span>
                   <div className="flex flex-wrap gap-3 mb-2">
-                    {/* 1st button: the live demo */}
                     <button
                       onClick={() => !isOptimized && handleOptimizeBlock4()}
                       className={`px-5 py-2.5 text-white font-semibold rounded-md border text-base transition
@@ -847,7 +906,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     >
                       {isOptimized ? 'Optimized ✓' : 'Optimize Block 4 Auditorium HVAC'}
                     </button>
-                    {/* 2nd button: inspect water */}
                     <button
                       onClick={() => showToast("Scheduled (simulated).")}
                       className="px-5 py-2.5 bg-zinc-900/80 border border-zinc-700 text-white font-semibold rounded-md text-base hover:border-blue-300 transition"
@@ -855,7 +913,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     >
                       Schedule Water Inspection
                     </button>
-                    {/* PDF download */}
                     <a href="/GCET_Report.pdf" download tabIndex={-1} className="inline-block">
                       <button
                         onClick={() => showToast("PDF report downloaded.")}
@@ -868,7 +925,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                   <div className="text-xs text-zinc-500 mt-1">Actions send secure operations to GCET IoT devices</div>
                 </motion.div>
-                {/* ROI impact */}
                 <motion.div
                   initial={{ opacity: 0, y: 23 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -896,10 +952,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     Carbon Reduction: 17%
                   </div>
                 </motion.div>
-                {/* Just an empty col for alignment */}
                 <div />
               </div>
-              {/* (optional) children hidden, to avoid deopt issues */}
               <div className="hidden">{children}</div>
             </motion.div>
           )}
